@@ -2,18 +2,18 @@
 
 FarmaHN es un comparador CLI/TUI de precios y disponibilidad de medicamentos para farmacias de Honduras.
 
-## v0.3.0
+## v0.3.1
 
-La versión 0.3 incorpora una base local SQLite, caché, historial de precios, normalización de medicamentos, deduplicación, filtros y diagnóstico de proveedores.
+La versión 0.3.1 incorpora SQLite, caché, historial de precios, normalización/deduplicación y soporte de navegador headless con Playwright para farmacias que cargan sus resultados mediante JavaScript.
 
 ### Farmacias
 
 | Farmacia | Estado | Situación actual |
 |---|---|---|
 | Farmacia San Antonio | Estable inicial | búsqueda HTML, precio, oferta, enlace y detección de agotado cuando el sitio lo publica |
-| Farmacia Simán | Experimental | búsqueda preparada; el stock por sucursal depende de confirmar su API dinámica |
-| Farmacias Kielsa | Experimental | búsqueda HTML preparada |
-| Farmacias del Ahorro | Experimental | búsqueda HTML preparada |
+| Farmacia Simán | Experimental | búsqueda renderizada con Chromium/Playwright; stock por sucursal pendiente |
+| Farmacias Kielsa | Experimental | ruta real `/searchproduct/1/TODAS/<termino>` + renderizado JavaScript |
+| Farmacias del Ahorro | Experimental | búsqueda mediante formulario real y renderizado JavaScript; el precio puede no aparecer en la tarjeta de resultados |
 
 Los cuatro providers participan de forma independiente. Si una farmacia falla, las demás continúan.
 
@@ -26,6 +26,7 @@ cd farmahn
 python -m venv .venv
 source .venv/bin/activate
 pip install -e .
+farmahn setup-browser
 ```
 
 Para desarrollo:
@@ -278,3 +279,32 @@ FarmaHN consulta información pública de los sitios. No evade autenticación, C
 - Exportación CSV.
 - API FastAPI.
 - Interfaz Textual avanzada.
+
+
+## Sitios con JavaScript
+
+Kielsa, Simán y Farmacias del Ahorro cargan parte del catálogo después de abrir la página. FarmaHN utiliza Playwright/Chromium como fallback para poder leer el DOM ya renderizado.
+
+Después de actualizar o instalar por primera vez:
+
+```bash
+farmahn setup-browser
+```
+
+Si ya tienes Chromium/Chrome/Brave instalado, FarmaHN intenta usarlo automáticamente.
+
+Para comprobar una búsqueda sin datos antiguos del caché:
+
+```bash
+farmahn cache-limpiar
+farmahn buscar "DESITIN" --sin-cache
+```
+
+Prueba individual por proveedor:
+
+```bash
+farmahn buscar "DESITIN" --farmacia san-antonio --sin-cache
+farmahn buscar "DESITIN" --farmacia kielsa --sin-cache
+farmahn buscar "DESITIN" --farmacia ahorro --sin-cache
+farmahn buscar "DESITIN" --farmacia siman --sin-cache
+```
