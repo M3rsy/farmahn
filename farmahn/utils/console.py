@@ -30,15 +30,16 @@ def render_products(products: list[Product]):
 
     for i, product in enumerate(products, 1):
         offer = f"Ahorra L {product.savings:,.2f}" if product.savings else "—"
-        stock = (
-            "✓ Disponible"
-            if product.available is True
-            else "✗ Sin stock"
-            if product.available is False
-            else "No informada"
-        )
+        if product.available is True:
+            stock = "[bold green]✓ Disponible[/bold green]"
+        elif product.available is False:
+            stock = "[bold red]✗ Sin stock[/bold red]"
+        else:
+            stock = "[yellow]• No informada[/yellow]"
+
         price = f"L {product.price:,.2f}" if product.price is not None else "No mostrado"
         unit = f"L {product.unit_price:,.2f}" if product.unit_price is not None else "—"
+
         table.add_row(
             str(i),
             product.pharmacy,
@@ -67,7 +68,13 @@ def render_history(rows: list[dict]):
 
     for row in rows:
         available = row.get("available")
-        state = "✓" if available is True else "✗" if available is False else "—"
+        state = (
+            "[green]✓ Disponible[/green]"
+            if available is True
+            else "[red]✗ Sin stock[/red]"
+            if available is False
+            else "[yellow]• No informada[/yellow]"
+        )
         observed = str(row["observed_at"]).replace("T", " ")[:19]
         table.add_row(
             observed,
