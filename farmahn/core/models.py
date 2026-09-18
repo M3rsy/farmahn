@@ -21,12 +21,15 @@ class Product(BaseModel):
     active_ingredient: Optional[str] = None
     concentration: Optional[str] = None
     presentation: Optional[str] = None
+    dosage_form: Optional[str] = None
     quantity: Optional[int] = None
     available: Optional[bool] = None
     stock: Optional[int] = None
     branch: Optional[str] = None
     city: Optional[str] = None
     unit_price: Optional[float] = None
+    canonical_key: Optional[str] = None
+    match_score: Optional[float] = None
     fetched_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     stocks: list[StockEntry] = Field(default_factory=list)
 
