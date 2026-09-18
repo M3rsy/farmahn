@@ -1,10 +1,11 @@
 from __future__ import annotations
 
-from urllib.parse import urljoin
+from urllib.parse import quote, urljoin
+
 import httpx
 
-from farmahn.core.normalize import normalize_text
 from farmahn.providers.base import PharmacyProvider, ProviderError
+from farmahn.providers.browser import BrowserUnavailable, rendered_html
 from farmahn.providers.generic_html import GenericProductParser
 
 
@@ -14,39 +15,34 @@ class SimanProvider(PharmacyProvider):
     base_url = "https://www.farmaciasiman.com/"
     experimental = True
 
-    def __init__(self, timeout: float = 15.0):
+    def __init__(self, timeout: float = 20.0):
         self.timeout = timeout
 
     async def search(self, query: str, city: str | None = None):
-        attempts = [
-            ("productos", {"search": query}),
-            ("productos", {"q": query}),
-            ("productos/buscar", {"texto": query}),
-            ("productos/buscar", {"q": query}),
-        ]
-        headers = {
-            "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) FarmaHN/0.2",
-            "Accept-Language": "es-HN,es;q=0.9",
-        }
-        last_error = None
-        async with httpx.AsyncClient(timeout=self.timeout, headers=headers, follow_redirects=True) as client:
-            for path, params in attempts:
-                try:
-                    response = await client.get(urljoin(self.base_url, path), params=params)
-                    response.raise_for_status()
-                    if response.text.count("{$") > 5:
-                        continue
-                    items = GenericProductParser.parse(response.text, str(response.url), self.name)
-                    tokens = [t for t in normalize_text(query).split() if len(t) > 1]
-                    items = [p for p in items if not tokens or any(t in normalize_text(p.name) for t in tokens)]
-                    if items:
-                        return sorted(items, key=lambda p: p.price)
-                except httpx.HTTPError as exc:
-                    last_error = exc
+        # Simán publica búsquedas bajo /busqueda/<termino>, pero el HTML crudo
+        # contiene plantillas Angular; necesitamos ejecutar el JavaScript.
+        search_url = urljoin(self.base_url, f"busqueda/{quote(query, safe='')}")
 
-        if last_error:
-            raise ProviderError(f"No se pudo consultar {self.name}: {last_error}")
+        try:
+            html, final_url = await rendered_html(search_url)
+        except BrowserUnavailable as exc:
+            raise ProviderError(str(exc)) from exc
+        except Exception as exc:
+            raise ProviderError(
+                f"No se pudo completar la búsqueda dinámica de {self.name}: {exc}"
+            ) from exc
+
+        items = GenericProductParser.parse(
+            html,
+            final_url,
+            self.name,
+            query=query,
+            allow_missing_price=True,
+        )
+        if items:
+            return items
+
         raise ProviderError(
-            f"{self.name} respondió, pero no entregó productos renderizados en HTML. "
-            "Es posible que la búsqueda dependa de una API dinámica que aún debe confirmarse."
+            "Simán cargó la búsqueda, pero FarmaHN no pudo identificar "
+            "productos después de ejecutar JavaScript."
         )
