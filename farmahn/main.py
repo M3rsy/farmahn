@@ -26,7 +26,7 @@ def buscar(
     ciudad: str | None = typer.Option(None, "--ciudad", "-c", help="Ciudad, por ejemplo 'San Pedro Sula'"),
     json_output: bool = typer.Option(False, "--json", help="Devuelve JSON"),
 ):
-    """Busca un medicamento directamente desde la terminal."""
+    """Busca un medicamento en las farmacias configuradas."""
     products, statuses = asyncio.run(search_all(get_providers(), query, ciudad))
     if json_output:
         typer.echo(json.dumps({
@@ -36,19 +36,22 @@ def buscar(
             "results": [p.model_dump(mode="json") for p in products],
         }, ensure_ascii=False, indent=2, default=str))
         raise typer.Exit()
+
     banner()
     for s in statuses:
         state = "[green]✓[/green]" if s.ok else "[red]✗[/red]"
-        print(f"{state} {s.provider} — {s.count} resultado(s)")
+        suffix = f" — {s.error}" if s.error else ""
+        print(f"{state} {s.provider} — {s.count} resultado(s){suffix}")
     render_products(products)
 
 
 @app.command("farmacias")
 def farmacias():
-    """Muestra proveedores activos y planificados."""
-    for p in get_providers(active_only=False):
-        active = p.slug == "san-antonio"
-        print(f"{'[green]●[/green]' if active else '[yellow]○[/yellow]'} {p.name} ({p.slug})")
+    """Muestra todos los proveedores integrados."""
+    for p in get_providers():
+        experimental = getattr(p, "experimental", False)
+        badge = "[yellow]EXPERIMENTAL[/yellow]" if experimental else "[green]ESTABLE[/green]"
+        print(f"● {p.name} ({p.slug}) — {badge}")
 
 
 if __name__ == "__main__":
