@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "farmahn"
-version = "0.3.0"
+version = "0.3.1"
 description = "CLI para comparar precios y disponibilidad de medicamentos en farmacias de Honduras"
 readme = "README.md"
 requires-python = ">=3.11"
@@ -16,6 +16,7 @@ dependencies = [
   "beautifulsoup4>=4.12.3",
   "pydantic>=2.9.2",
   "rapidfuzz>=3.9.7",
+  "playwright>=1.47.0",
 ]
 
 [project.optional-dependencies]
