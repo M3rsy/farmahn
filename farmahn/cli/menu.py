@@ -40,16 +40,18 @@ def interactive_menu():
         elif choice == "3":
             _providers()
         else:
-            console.print(Panel("FarmaHN v0.1.0\nCLI extensible para consultar precios públicos de farmacias hondureñas."))
+            console.print(Panel("FarmaHN v0.2.0\nComparador extensible para consultar precios públicos de farmacias hondureñas."))
             Prompt.ask("ENTER para volver", default="")
 
 
 def _providers():
     console.print("\n[bold]Integraciones[/bold]")
-    console.print("[green]●[/green] Farmacia San Antonio — activa")
-    console.print("[yellow]○[/yellow] Farmacia Simán — preparada")
-    console.print("[yellow]○[/yellow] Farmacias Kielsa — preparada")
-    console.print("[yellow]○[/yellow] Farmacias del Ahorro — preparada")
+    for provider in get_providers():
+        experimental = getattr(provider, "experimental", False)
+        if experimental:
+            console.print(f"[yellow]◐[/yellow] {provider.name} — experimental")
+        else:
+            console.print(f"[green]●[/green] {provider.name} — estable")
     Prompt.ask("\nENTER para volver", default="")
 
 
@@ -57,18 +59,21 @@ def _search_flow(stock_focus: bool = False):
     query = Prompt.ask("[bold cyan]Nombre, marca o principio activo[/bold cyan]").strip()
     if not query:
         return
+
     console.print("\n[bold]Ciudad[/bold]")
     console.print("1. San Pedro Sula\n2. Tegucigalpa\n3. La Ceiba\n4. Todas")
     city_choice = Prompt.ask("Seleccione", choices=["1", "2", "3", "4"], default="1")
     city_map = {"1": "San Pedro Sula", "2": "Tegucigalpa", "3": "La Ceiba", "4": None}
     city_arg = city_map[city_choice]
 
-    with console.status("[bold cyan]Consultando farmacias...[/bold cyan]"):
+    with console.status("[bold cyan]Consultando farmacias en paralelo...[/bold cyan]"):
         products, statuses = asyncio.run(search_all(get_providers(), query, city_arg))
+
     console.print()
     for s in statuses:
         icon = "[green]✓[/green]" if s.ok else "[red]✗[/red]"
         console.print(f"{icon} {s.provider}: {s.count} resultado(s)" + (f" — {s.error}" if s.error else ""))
+
     render_products(products)
     if not products:
         Prompt.ask("\nENTER para volver", default="")
