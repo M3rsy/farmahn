@@ -70,7 +70,7 @@ class Database:
 
     @staticmethod
     def _cache_key(provider_slug: str, query: str, city: str | None) -> str:
-        raw = "|".join((provider_slug, normalize_text(query), normalize_text(city or "")))
+        raw = "|".join(("v2", provider_slug, normalize_text(query), normalize_text(city or "")))
         return hashlib.sha256(raw.encode("utf-8")).hexdigest()
 
     def get_cached_search(self, provider_slug: str, query: str, city: str | None) -> list[Product] | None:
