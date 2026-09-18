@@ -70,7 +70,7 @@ class Database:
 
     @staticmethod
     def _cache_key(provider_slug: str, query: str, city: str | None) -> str:
-        raw = "|".join(("v2", provider_slug, normalize_text(query), normalize_text(city or "")))
+        raw = "|".join(("v3", provider_slug, normalize_text(query), normalize_text(city or "")))
         return hashlib.sha256(raw.encode("utf-8")).hexdigest()
 
     def get_cached_search(self, provider_slug: str, query: str, city: str | None) -> list[Product] | None:
@@ -132,6 +132,11 @@ class Database:
         now = datetime.now(timezone.utc).isoformat()
         rows = []
         for product in products:
+            # El catálogo puede exponer nombre/enlace antes de mostrar el precio.
+            # Esos productos sí se muestran y cachean, pero no entran al historial
+            # hasta tener un precio numérico verificable.
+            if product.price is None:
+                continue
             rows.append(
                 (
                     provider_slug,
