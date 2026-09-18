@@ -37,12 +37,13 @@ def render_products(products: list[Product]):
             if product.available is False
             else "No informada"
         )
+        price = f"L {product.price:,.2f}" if product.price is not None else "No mostrado"
         unit = f"L {product.unit_price:,.2f}" if product.unit_price is not None else "—"
         table.add_row(
             str(i),
             product.pharmacy,
             product.name,
-            f"L {product.price:,.2f}",
+            price,
             unit,
             offer,
             stock,
