@@ -2,9 +2,9 @@
 
 FarmaHN es un comparador CLI/TUI de precios y disponibilidad de medicamentos para farmacias de Honduras.
 
-## v0.3.1
+## v0.3.2
 
-La versión 0.3.1 incorpora SQLite, caché, historial de precios, normalización/deduplicación y soporte de navegador headless con Playwright para farmacias que cargan sus resultados mediante JavaScript.
+La versión 0.3.2 mejora Farmacias del Ahorro, consulta la ficha de producto para recuperar precio/disponibilidad, mantiene productos cuyo precio aún no aparece en la búsqueda y ordena los resultados por disponibilidad antes del criterio seleccionado.
 
 ### Farmacias
 
@@ -307,4 +307,42 @@ farmahn buscar "DESITIN" --farmacia san-antonio --sin-cache
 farmahn buscar "DESITIN" --farmacia kielsa --sin-cache
 farmahn buscar "DESITIN" --farmacia ahorro --sin-cache
 farmahn buscar "DESITIN" --farmacia siman --sin-cache
+```
+
+
+## Orden por disponibilidad
+
+Desde v0.3.2, cualquier criterio de orden conserva esta prioridad:
+
+```text
+1. ✓ Disponible
+2. • Disponibilidad no informada
+3. ✗ Sin stock / agotado
+```
+
+Dentro de cada grupo se aplica `--orden precio`, `relevancia`, `nombre` o `farmacia`.
+
+La terminal muestra:
+
+- **verde**: disponible;
+- **amarillo**: disponibilidad no informada;
+- **rojo**: agotado o sin stock.
+
+## Farmacias del Ahorro
+
+El buscador se ejecuta con Chromium porque la página carga resultados mediante JavaScript. FarmaHN intenta localizar el control de búsqueda, enviar la consulta de varias formas y después extraer las tarjetas.
+
+Si la tarjeta no publica precio, FarmaHN conserva el producto y consulta su ficha. La ficha actual publica valores en un formato como:
+
+```text
+Total + ISV (L.) 745.50
+```
+
+Ese formato ya está soportado. Los productos sin precio verificable pueden mostrarse como `No mostrado`, pero no se insertan en el historial hasta obtener un valor numérico.
+
+Para probar específicamente Del Ahorro:
+
+```bash
+farmahn cache-limpiar
+farmahn buscar "GLUCERNA" --farmacia ahorro --sin-cache
 ```
