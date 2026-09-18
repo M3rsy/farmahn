@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 from dataclasses import dataclass
+from math import inf
 
 from farmahn.core.models import Product
 from farmahn.core.normalize import (
@@ -24,13 +25,23 @@ class ProviderStatus:
     cached: bool = False
 
 
+def _price(product: Product) -> float:
+    return product.price if product.price is not None else inf
+
+
 def enrich_product(product: Product, query: str) -> Product:
     quantity = product.quantity or extract_quantity(product.name)
     concentration = product.concentration or extract_concentration(product.name)
     dosage_form = product.dosage_form or extract_dosage_form(product.name)
     canonical_key = product.canonical_key or canonical_product_key(product.name)
     unit_price = product.unit_price
-    if unit_price is None and quantity and quantity > 1:
+
+    if (
+        unit_price is None
+        and product.price is not None
+        and quantity
+        and quantity > 1
+    ):
         unit_price = round(product.price / quantity, 2)
 
     return product.model_copy(
@@ -48,10 +59,21 @@ def enrich_product(product: Product, query: str) -> Product:
 def deduplicate(products: list[Product]) -> list[Product]:
     selected: dict[tuple[str, str], Product] = {}
     for product in products:
-        key = (product.pharmacy.casefold(), product.canonical_key or canonical_product_key(product.name))
+        key = (
+            product.pharmacy.casefold(),
+            product.canonical_key or canonical_product_key(product.name),
+        )
         current = selected.get(key)
-        if current is None or product.price < current.price:
+        if current is None:
             selected[key] = product
+            continue
+
+        # Si solo uno de los duplicados tiene precio, conservar ese.
+        if current.price is None and product.price is not None:
+            selected[key] = product
+        elif product.price is not None and current.price is not None and product.price < current.price:
+            selected[key] = product
+
     return list(selected.values())
 
 
@@ -73,13 +95,21 @@ async def search_all(
             cached = database.get_cached_search(provider.slug, query, city)
             if cached is not None:
                 items = [enrich_product(item, query) for item in cached]
-                return items, ProviderStatus(provider.name, True, len(items), cached=True)
+                return items, ProviderStatus(
+                    provider.name, True, len(items), cached=True
+                )
 
         try:
             items = await provider.search(query, city=city)
             items = deduplicate([enrich_product(item, query) for item in items])
             database.record_prices(provider.slug, items, city)
-            database.set_cached_search(provider.slug, query, city, items, ttl_minutes=cache_ttl)
+            database.set_cached_search(
+                provider.slug,
+                query,
+                city,
+                items,
+                ttl_minutes=cache_ttl,
+            )
             return items, ProviderStatus(provider.name, True, len(items))
         except Exception as exc:
             return [], ProviderStatus(provider.name, False, 0, str(exc))
@@ -92,13 +122,13 @@ async def search_all(
 
     order_key = order.casefold()
     if order_key == "relevancia":
-        products.sort(key=lambda p: (-(p.match_score or 0), p.price))
+        products.sort(key=lambda p: (-(p.match_score or 0), _price(p)))
     elif order_key == "nombre":
-        products.sort(key=lambda p: (p.name.casefold(), p.price))
+        products.sort(key=lambda p: (p.name.casefold(), _price(p)))
     elif order_key == "farmacia":
-        products.sort(key=lambda p: (p.pharmacy.casefold(), p.price))
+        products.sort(key=lambda p: (p.pharmacy.casefold(), _price(p)))
     else:
-        products.sort(key=lambda p: (p.price, -(p.match_score or 0)))
+        products.sort(key=lambda p: (_price(p), -(p.match_score or 0)))
 
     statuses = [status for _, status in batches]
     return products, statuses
