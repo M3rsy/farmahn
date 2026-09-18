@@ -60,17 +60,24 @@ class GenericProductParser:
                         seen.add(id(node))
 
         # Fallback para sitios cuyos botones son "VER MÁS", "VER PRODUCTO" o "AGREGAR".
-        for anchor in soup.find_all("a", href=True):
-            label = normalize_text(anchor.get_text(" ", strip=True))
-            if not any(key in label for key in ("VER MAS", "VER PRODUCTO", "AGREGAR", "AVISO CUANDO")):
+        action_nodes = [
+            *soup.find_all("a", href=True),
+            *soup.find_all("button"),
+        ]
+        for node in action_nodes:
+            label = normalize_text(node.get_text(" ", strip=True))
+            if not any(
+                key in label
+                for key in ("VER MAS", "VER PRODUCTO", "AGREGAR", "AVISO CUANDO")
+            ):
                 continue
-            parent = anchor
-            for _ in range(6):
+            parent = node
+            for _ in range(7):
                 parent = parent.parent
                 if not isinstance(parent, Tag):
                     break
                 text = parent.get_text(" ", strip=True)
-                if 20 <= len(text) <= 1400:
+                if 20 <= len(text) <= 1600:
                     if id(parent) not in seen:
                         cards.append(parent)
                         seen.add(id(parent))
