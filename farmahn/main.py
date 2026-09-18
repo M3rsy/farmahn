@@ -3,7 +3,9 @@ from __future__ import annotations
 import asyncio
 import json
 import platform
+import subprocess
 import sys
+
 import typer
 from rich import print
 from rich.panel import Panel
@@ -13,12 +15,7 @@ from farmahn.cli.menu import interactive_menu
 from farmahn.core.search import health_all, search_all
 from farmahn.providers.registry import get_providers
 from farmahn.storage.db import default_database
-from farmahn.utils.console import (
-    banner,
-    render_health,
-    render_history,
-    render_products,
-)
+from farmahn.utils.console import banner, render_health, render_history, render_products
 
 app = typer.Typer(
     add_completion=False,
@@ -88,6 +85,19 @@ def buscar(
         suffix = f" — {status.error}" if status.error else ""
         print(f"{state} {status.provider} — {status.count} resultado(s){cache}{suffix}")
     render_products(products)
+
+
+@app.command("setup-browser")
+def setup_browser():
+    """Instala Chromium para farmacias que cargan sus resultados con JavaScript."""
+    print("[cyan]Instalando Chromium para FarmaHN...[/cyan]")
+    result = subprocess.run(
+        [sys.executable, "-m", "playwright", "install", "chromium"],
+        check=False,
+    )
+    if result.returncode != 0:
+        raise typer.Exit(result.returncode)
+    print("[green]✓ Chromium listo.[/green]")
 
 
 @app.command("historial")
