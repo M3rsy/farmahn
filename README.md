@@ -1,21 +1,21 @@
 # 💊 FarmaHN
 
-Comparador CLI de precios y disponibilidad de medicamentos para farmacias de Honduras.
+FarmaHN es un comparador CLI/TUI de precios y disponibilidad de medicamentos para farmacias de Honduras.
 
-## v0.2
+## v0.3.0
 
-FarmaHN consulta las fuentes configuradas **en paralelo** y combina los resultados en una sola tabla.
+La versión 0.3 incorpora una base local SQLite, caché, historial de precios, normalización de medicamentos, deduplicación, filtros y diagnóstico de proveedores.
 
-### Proveedores
+### Farmacias
 
-| Farmacia | Estado | Datos objetivo |
+| Farmacia | Estado | Situación actual |
 |---|---|---|
-| Farmacia San Antonio | Estable inicial | nombre, precio, oferta, enlace, disponibilidad HTML |
-| Farmacia Simán | Experimental | nombre, precio, enlace; stock por sucursal pendiente de fijar API dinámica |
-| Farmacias Kielsa | Experimental | nombre, precio, enlace |
-| Farmacias del Ahorro | Experimental | nombre, precio, enlace, disponibilidad cuando el sitio la publique |
+| Farmacia San Antonio | Estable inicial | búsqueda HTML, precio, oferta, enlace y detección de agotado cuando el sitio lo publica |
+| Farmacia Simán | Experimental | búsqueda preparada; el stock por sucursal depende de confirmar su API dinámica |
+| Farmacias Kielsa | Experimental | búsqueda HTML preparada |
+| Farmacias del Ahorro | Experimental | búsqueda HTML preparada |
 
-Los proveedores experimentales ya participan en cada búsqueda. Si un sitio cambia, bloquea la petición o entrega el catálogo mediante JavaScript/API no identificada, **solo esa fuente falla** y las demás continúan.
+Los cuatro providers participan de forma independiente. Si una farmacia falla, las demás continúan.
 
 ## Instalación
 
@@ -28,45 +28,176 @@ source .venv/bin/activate
 pip install -e .
 ```
 
-Para pruebas:
+Para desarrollo:
 
 ```bash
 pip install -e '.[dev]'
 pytest -q
 ```
 
-## Uso
-
-Menú interactivo:
+## Menú interactivo
 
 ```bash
 farmahn
 ```
 
-Búsqueda directa en todas las farmacias:
+Incluye:
+
+- Buscar medicamento.
+- Buscar solo productos con disponibilidad confirmada.
+- Consultar historial.
+- Revisar estado de farmacias.
+- Elegir una farmacia específica.
+- Abrir el enlace directo del producto.
+
+## Búsquedas
+
+Todas las farmacias:
 
 ```bash
-farmahn buscar "paracetamol"
+farmahn buscar "metformina 850"
+```
+
+Por ciudad:
+
+```bash
 farmahn buscar "metformina 850" --ciudad "San Pedro Sula"
 ```
 
-Salida estructurada:
+Solo una farmacia:
 
 ```bash
-farmahn buscar "paracetamol" --json
+farmahn buscar "paracetamol" --farmacia kielsa
+farmahn buscar "paracetamol" --farmacia siman
+farmahn buscar "paracetamol" --farmacia san-antonio
 ```
 
-Estado de integraciones:
+Solo disponibilidad confirmada:
 
 ```bash
-farmahn farmacias
+farmahn buscar "paracetamol" --solo-disponibles
 ```
+
+Orden:
+
+```bash
+farmahn buscar "losartan" --orden precio
+farmahn buscar "losartan" --orden relevancia
+farmahn buscar "losartan" --orden nombre
+farmahn buscar "losartan" --orden farmacia
+```
+
+Ignorar caché:
+
+```bash
+farmahn buscar "metformina" --sin-cache
+```
+
+Cambiar duración del caché:
+
+```bash
+farmahn buscar "metformina" --cache-minutos 30
+```
+
+JSON:
+
+```bash
+farmahn buscar "metformina" --json
+```
+
+## SQLite e historial
+
+La base de datos se crea automáticamente siguiendo XDG:
+
+```text
+~/.local/share/farmahn/farmahn.db
+```
+
+o `$XDG_DATA_HOME/farmahn/farmahn.db` cuando esa variable existe.
+
+Se almacenan:
+
+- resultados recientes en caché;
+- precios observados;
+- farmacia;
+- nombre del producto;
+- concentración;
+- presentación;
+- cantidad;
+- disponibilidad;
+- URL;
+- ciudad;
+- fecha de observación.
+
+Consultar historial:
+
+```bash
+farmahn historial "metformina 850"
+```
+
+Limpiar solamente el caché:
+
+```bash
+farmahn cache-limpiar
+```
+
+El historial no se elimina con ese comando.
+
+## Normalización y comparación
+
+FarmaHN intenta extraer automáticamente:
+
+```text
+METFORMINA 850MG X30 TABLETAS
+
+concentración -> 850 mg
+cantidad      -> 30
+forma         -> tableta
+precio unidad -> precio / 30
+```
+
+La clave canónica incluye concentración, forma farmacéutica y cantidad. Esto reduce el riesgo de agrupar por error:
+
+```text
+Metformina 500 mg x30
+Metformina 850 mg x30
+Metformina 850 mg x60
+```
+
+como si fueran el mismo producto.
+
+También usa RapidFuzz para calcular relevancia respecto de la búsqueda.
+
+## Diagnóstico
+
+Estado HTTP de las farmacias:
+
+```bash
+farmahn estado
+```
+
+Diagnóstico completo:
+
+```bash
+farmahn doctor
+```
+
+Muestra:
+
+- versión FarmaHN;
+- versión Python;
+- sistema operativo;
+- ruta SQLite;
+- cantidad de elementos en caché;
+- número de observaciones históricas;
+- estado y latencia de proveedores.
 
 ## Arquitectura
 
 ```text
 farmahn/
 ├── cli/
+│   └── menu.py
 ├── core/
 │   ├── models.py
 │   ├── normalize.py
@@ -79,26 +210,71 @@ farmahn/
 │   ├── kielsa.py
 │   ├── ahorro.py
 │   └── registry.py
+├── storage/
+│   └── db.py
 └── utils/
+    └── console.py
 ```
 
-Cada farmacia tiene su propio provider. Por eso un cambio de HTML en Kielsa, por ejemplo, no requiere modificar el motor principal.
+## Caché
 
-## Sitios dinámicos
+El caché se guarda por:
 
-Simán muestra públicamente en su interfaz información de inventario por sucursal, pero carga gran parte de su catálogo dinámicamente. La v0.2 incluye la integración HTTP y detección de páginas no hidratadas; el siguiente paso es fijar el endpoint público exacto que utiliza el navegador para obtener productos y `invActual`.
+```text
+farmacia + consulta + ciudad
+```
 
-Kielsa y Farmacias del Ahorro también se mantienen aisladas como providers propios para poder ajustar sus requests sin tocar la aplicación.
+Por defecto dura 10 minutos. Esto reduce peticiones repetitivas contra los sitios de las farmacias.
+
+Una consulta indica cuando provino del caché:
+
+```text
+✓ Farmacia San Antonio — 5 resultado(s) (caché)
+```
+
+## Stock por sucursal
+
+El modelo ya soporta:
+
+```text
+farmacia
+sucursal
+ciudad
+cantidad
+disponible
+```
+
+Sin embargo, cantidad real por sucursal solo debe mostrarse cuando el sitio fuente la entregue de forma verificable. Simán carga inventario dinámicamente, por lo que falta fijar el endpoint público exacto antes de considerar esa integración estable.
+
+FarmaHN no inventa cantidades cuando la farmacia no las publica.
+
+## Pruebas
+
+Hay pruebas para:
+
+- parser de San Antonio;
+- concentración, cantidad y forma farmacéutica;
+- clave canónica;
+- relevancia;
+- SQLite;
+- historial;
+- caché;
+- deduplicación;
+- reutilización de caché.
+
+GitHub Actions ejecuta las pruebas en cada push.
 
 ## Uso responsable
 
-FarmaHN trabaja con información publicada para usuarios de las farmacias. No intenta evadir CAPTCHA, autenticación ni controles anti-bot. Para despliegues de volumen se deben respetar términos de uso, robots.txt, caché y límites de petición.
+FarmaHN consulta información pública de los sitios. No evade autenticación, CAPTCHA ni controles anti-bot. Para despliegues de mayor volumen deben respetarse términos de servicio, robots.txt y límites razonables de petición.
 
-## Roadmap
+## Próximos objetivos
 
-- Confirmar endpoints dinámicos exactos de Simán, Kielsa y Del Ahorro.
-- Stock por sucursal.
-- SQLite para caché e historial de precios.
-- Favoritos y alertas.
-- Comparación por presentación y precio unitario.
-- API FastAPI y, posteriormente, frontend web/app.
+- Fijar APIs dinámicas reales de Simán, Kielsa y Del Ahorro.
+- Stock real por sucursal cuando la fuente lo permita.
+- Favoritos.
+- Alertas de precio.
+- Configuración TOML persistente.
+- Exportación CSV.
+- API FastAPI.
+- Interfaz Textual avanzada.
