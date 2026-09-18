@@ -48,3 +48,82 @@ async def test_search_deduplicates_and_uses_cache(tmp_path):
     assert first[0].price == 300.0
     assert first_status[0].cached is False
     assert second_status[0].cached is True
+
+
+
+class AvailabilityProvider(PharmacyProvider):
+    name = "Orden"
+    slug = "orden"
+    base_url = "https://example.test/"
+
+    async def search(self, query: str, city: str | None = None):
+        return [
+            Product(
+                pharmacy=self.name,
+                name="PRODUCTO SIN STOCK",
+                price=10.0,
+                url="https://example.test/out",
+                available=False,
+            ),
+            Product(
+                pharmacy=self.name,
+                name="PRODUCTO DESCONOCIDO",
+                price=20.0,
+                url="https://example.test/unknown",
+                available=None,
+            ),
+            Product(
+                pharmacy=self.name,
+                name="PRODUCTO DISPONIBLE",
+                price=30.0,
+                url="https://example.test/in",
+                available=True,
+            ),
+        ]
+
+
+@pytest.mark.asyncio
+async def test_available_products_are_sorted_first(tmp_path):
+    db = Database(tmp_path / "sort.db")
+    products, _ = await search_all(
+        [AvailabilityProvider()],
+        "producto",
+        db=db,
+        use_cache=False,
+        order="precio",
+    )
+
+    assert [product.available for product in products] == [True, None, False]
+
+
+class MissingPriceProvider(PharmacyProvider):
+    name = "Sin precio"
+    slug = "sin-precio"
+    base_url = "https://example.test/"
+
+    async def search(self, query: str, city: str | None = None):
+        return [
+            Product(
+                pharmacy=self.name,
+                name="GLUCERNA SR VAINILLA 400G",
+                price=None,
+                url="https://example.test/glucerna",
+                available=True,
+            )
+        ]
+
+
+@pytest.mark.asyncio
+async def test_product_without_price_is_not_discarded(tmp_path):
+    db = Database(tmp_path / "missing-price.db")
+    products, status = await search_all(
+        [MissingPriceProvider()],
+        "glucerna",
+        db=db,
+        use_cache=False,
+    )
+
+    assert status[0].ok is True
+    assert len(products) == 1
+    assert products[0].price is None
+    assert db.history("glucerna") == []
