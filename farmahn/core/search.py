@@ -29,6 +29,15 @@ def _price(product: Product) -> float:
     return product.price if product.price is not None else inf
 
 
+def _availability_rank(product: Product) -> int:
+    """Disponible primero, desconocido al centro y sin stock al final."""
+    if product.available is True:
+        return 0
+    if product.available is None:
+        return 1
+    return 2
+
+
 def enrich_product(product: Product, query: str) -> Product:
     quantity = product.quantity or extract_quantity(product.name)
     concentration = product.concentration or extract_concentration(product.name)
@@ -68,10 +77,18 @@ def deduplicate(products: list[Product]) -> list[Product]:
             selected[key] = product
             continue
 
-        # Si solo uno de los duplicados tiene precio, conservar ese.
-        if current.price is None and product.price is not None:
-            selected[key] = product
-        elif product.price is not None and current.price is not None and product.price < current.price:
+        # Preferir la variante con disponibilidad confirmada y precio conocido.
+        current_rank = (
+            _availability_rank(current),
+            0 if current.price is not None else 1,
+            _price(current),
+        )
+        product_rank = (
+            _availability_rank(product),
+            0 if product.price is not None else 1,
+            _price(product),
+        )
+        if product_rank < current_rank:
             selected[key] = product
 
     return list(selected.values())
@@ -122,13 +139,37 @@ async def search_all(
 
     order_key = order.casefold()
     if order_key == "relevancia":
-        products.sort(key=lambda p: (-(p.match_score or 0), _price(p)))
+        products.sort(
+            key=lambda product: (
+                _availability_rank(product),
+                -(product.match_score or 0),
+                _price(product),
+            )
+        )
     elif order_key == "nombre":
-        products.sort(key=lambda p: (p.name.casefold(), _price(p)))
+        products.sort(
+            key=lambda product: (
+                _availability_rank(product),
+                product.name.casefold(),
+                _price(product),
+            )
+        )
     elif order_key == "farmacia":
-        products.sort(key=lambda p: (p.pharmacy.casefold(), _price(p)))
+        products.sort(
+            key=lambda product: (
+                _availability_rank(product),
+                product.pharmacy.casefold(),
+                _price(product),
+            )
+        )
     else:
-        products.sort(key=lambda p: (_price(p), -(p.match_score or 0)))
+        products.sort(
+            key=lambda product: (
+                _availability_rank(product),
+                _price(product),
+                -(product.match_score or 0),
+            )
+        )
 
     statuses = [status for _, status in batches]
     return products, statuses
