@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 from typing import Optional
+
 from pydantic import BaseModel, Field
 
 
@@ -15,7 +16,7 @@ class StockEntry(BaseModel):
 class Product(BaseModel):
     pharmacy: str
     name: str
-    price: float = Field(ge=0)
+    price: Optional[float] = Field(default=None, ge=0)
     url: str
     regular_price: Optional[float] = None
     active_ingredient: Optional[str] = None
@@ -35,6 +36,10 @@ class Product(BaseModel):
 
     @property
     def savings(self) -> Optional[float]:
-        if self.regular_price is None or self.regular_price <= self.price:
+        if (
+            self.price is None
+            or self.regular_price is None
+            or self.regular_price <= self.price
+        ):
             return None
         return round(self.regular_price - self.price, 2)
