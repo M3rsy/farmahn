@@ -147,10 +147,16 @@ class AhorroProvider(PharmacyProvider):
 
         # La ficha actual muestra: "Total + ISV (L.) 745.50".
         total_match = re.search(
-            r"TOTAL\s*\+\s*ISV\s*\(L\.?\)\s*([\d,]+(?:\.\d{1,2})?)",
-            normalized,
+            r"TOTAL\s*\+\s*ISV\s*\(\s*L\.?\s*\)\s*([\d,]+(?:\.\d{1,2})?)",
+            text,
             re.I,
         )
+        if total_match is None:
+            total_match = re.search(
+                r"TOTAL\s*\+\s*ISV\s+L\.?\s*([\d,]+(?:\.\d{1,2})?)",
+                normalized,
+                re.I,
+            )
         if total_match:
             price = parse_money(total_match.group(1))
 
