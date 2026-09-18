@@ -26,7 +26,7 @@ class SanAntonioProvider(PharmacyProvider):
             ("GET", "", {"s": query, "post_type": "product"}),
         ]
         headers = {
-            "User-Agent": "FarmaHN/0.1 (+educational price comparison; respectful client)",
+            "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) FarmaHN/0.3",
             "Accept-Language": "es-HN,es;q=0.9",
         }
         last_error: Exception | None = None
